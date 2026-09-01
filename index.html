@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Disaster Alert Dashboard</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+  <link
+    href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap"
+    rel="stylesheet"
+  >
+
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  >
+
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+  <div class="app">
+
+    <!-- HEADER -->
+    <header class="topbar">
+
+      <div class="brand">
+
+        <div class="brand-mark">
+          ⚠
+        </div>
+
+        <div>
+          <h1>Disaster Alert Dashboard</h1>
+          <p>Live earthquake & weather monitoring</p>
+        </div>
+
+      </div>
+
+      <div class="status-panel">
+
+        <div id="overallSeverity" class="severity-badge sev-low">
+          <span class="pulse-dot"></span>
+          <span id="severityLabel">ALL CLEAR</span>
+        </div>
+
+        <span id="lastUpdated">Updated —</span>
+
+        <button id="refreshBtn" class="refresh-btn">
+          ↻
+        </button>
+
+      </div>
+
+    </header>
+
+
+    <!-- MAIN -->
+    <main class="layout">
+
+      <!-- MAP -->
+      <section class="map-panel">
+
+        <div id="map"></div>
+
+        <div class="map-legend">
+
+          <span>
+            <i class="dot sev-low"></i>
+            Low
+          </span>
+
+          <span>
+            <i class="dot sev-moderate"></i>
+            Moderate
+          </span>
+
+          <span>
+            <i class="dot sev-high"></i>
+            High
+          </span>
+
+          <span>
+            <i class="dot sev-severe"></i>
+            Severe
+          </span>
+
+        </div>
+
+      </section>
+
+
+      <!-- SIDE PANEL -->
+      <aside class="feed-panel">
+
+        <!-- ALERTS -->
+        <section class="alerts-section">
+
+          <div class="feed-header">
+
+            <div class="section-title">
+              <h2>Active Alerts</h2>
+
+              <span id="alertCount" class="count">
+                0
+              </span>
+            </div>
+
+            <div class="filter-group">
+
+              <button
+                class="filter-btn active"
+                data-filter="all"
+              >
+                All
+              </button>
+
+              <button
+                class="filter-btn"
+                data-filter="earthquake"
+              >
+                Earthquakes
+              </button>
+
+              <button
+                class="filter-btn"
+                data-filter="weather"
+              >
+                Weather
+              </button>
+
+            </div>
+
+          </div>
+
+
+          <ul id="alertsFeed" class="alerts-feed">
+
+            <li class="feed-empty">
+              Loading live data…
+            </li>
+
+          </ul>
+
+        </section>
+
+
+        <!-- WATCHLIST -->
+        <section class="watchlist">
+
+          <h2>Watched Locations</h2>
+
+          <form id="addLocationForm">
+
+            <input
+              type="text"
+              id="cityInput"
+              placeholder="Add a city..."
+              autocomplete="off"
+              required
+            >
+
+            <button type="submit">
+              Add
+            </button>
+
+          </form>
+
+          <p id="addLocationMsg"></p>
+
+          <ul id="watchlistItems"></ul>
+
+        </section>
+
+
+        <!-- AI -->
+        <section class="ai-section">
+
+          <div class="ai-header">
+
+            <div>
+              <h2>AI Alert Assistant</h2>
+              <p>Understand an alert in simple language.</p>
+            </div>
+
+          </div>
+
+          <button id="aiExplainBtn" class="ai-btn">
+            ✦ Explain Current Alert
+          </button>
+
+          <div id="aiResult" class="ai-result">
+            Select an alert and ask AI for an explanation.
+          </div>
+
+        </section>
+
+      </aside>
+
+    </main>
+
+
+    <!-- FOOTER -->
+    <footer class="app-footer">
+
+      <span>
+        Data: USGS Earthquake Hazards Program · Open-Meteo
+      </span>
+
+      <span id="storageMode">
+        Storage: checking…
+      </span>
+
+    </footer>
+
+  </div>
+
+
+  <!-- LEAFLET -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+
+  <!-- FIREBASE -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+  <script src="firebase-config.js"></script>
+
+
+  <!-- APP -->
+  <script src="script.js"></script>
+
+</body>
+</html>
