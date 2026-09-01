@@ -2,9 +2,13 @@
 // DISASTER ALERT DASHBOARD
 // ======================================================
 
-// ---------------- SEVERITY ----------------
+
+// ======================================================
+// SEVERITY
+// ======================================================
 
 const SEVERITY = {
+
   low: {
     rank: 1,
     color: "#4ade80",
@@ -28,145 +32,29 @@ const SEVERITY = {
     color: "#ef4444",
     label: "SEVERE"
   }
+
 };
+
 
 const RANK_TO_KEY = {
+
   1: "low",
+
   2: "moderate",
+
   3: "high",
+
   4: "severe"
+
 };
-
-
-// ---------------- EARTHQUAKE ----------------
-
-function earthquakeSeverity(magnitude) {
-
-  if (magnitude == null) {
-    return "low";
-  }
-
-  if (magnitude < 4) {
-    return "low";
-  }
-
-  if (magnitude < 5.5) {
-    return "moderate";
-  }
-
-  if (magnitude < 6.5) {
-    return "high";
-  }
-
-  return "severe";
-}
-
-
-// ---------------- WEATHER ----------------
-
-function weatherSeverity({
-  precipitation = 0,
-  windspeed = 0,
-  weathercode = 0
-}) {
-
-  let rank = 1;
-
-  if (precipitation >= 50) {
-    rank = Math.max(rank, 4);
-  } else if (precipitation >= 20) {
-    rank = Math.max(rank, 3);
-  } else if (precipitation >= 5) {
-    rank = Math.max(rank, 2);
-  }
-
-  if (windspeed >= 90) {
-    rank = Math.max(rank, 4);
-  } else if (windspeed >= 60) {
-    rank = Math.max(rank, 3);
-  } else if (windspeed >= 40) {
-    rank = Math.max(rank, 2);
-  }
-
-  if ([95, 96, 99].includes(weathercode)) {
-    rank = Math.max(rank, 3);
-  }
-
-  if ([65, 82].includes(weathercode)) {
-    rank = Math.max(rank, 2);
-  }
-
-  return RANK_TO_KEY[rank];
-}
-
-
-// ---------------- WEATHER LABEL ----------------
-
-function weatherLabel(code) {
-
-  const labels = {
-    0: "Clear sky",
-    1: "Mainly clear",
-    2: "Partly cloudy",
-    3: "Overcast",
-
-    45: "Fog",
-    48: "Rime fog",
-
-    51: "Light drizzle",
-    53: "Drizzle",
-    55: "Dense drizzle",
-
-    61: "Light rain",
-    63: "Rain",
-    65: "Heavy rain",
-
-    71: "Light snow",
-    73: "Snow",
-    75: "Heavy snow",
-
-    80: "Rain showers",
-    81: "Heavy showers",
-    82: "Violent showers",
-
-    95: "Thunderstorm",
-    96: "Thunderstorm with hail",
-    99: "Severe thunderstorm"
-  };
-
-  return labels[code] || "Unknown";
-}
-
-
-// ---------------- TIME ----------------
-
-function timeAgo(date) {
-
-  const seconds = Math.floor(
-    (Date.now() - date.getTime()) / 1000
-  );
-
-  if (seconds < 60) {
-    return "just now";
-  }
-
-  if (seconds < 3600) {
-    return `${Math.floor(seconds / 60)}m ago`;
-  }
-
-  if (seconds < 86400) {
-    return `${Math.floor(seconds / 3600)}h ago`;
-  }
-
-  return `${Math.floor(seconds / 86400)}d ago`;
-}
 
 
 // ======================================================
-// FIREBASE
+// DEFAULT WATCHLIST
 // ======================================================
 
 const DEFAULT_WATCHLIST = [
+
   {
     name: "Gaya, Bihar, India",
     lat: 24.7955,
@@ -184,11 +72,243 @@ const DEFAULT_WATCHLIST = [
     lat: 19.0760,
     lon: 72.8777
   }
+
 ];
 
+
+// ======================================================
+// GLOBAL VARIABLES
+// ======================================================
+
 let db = null;
+
 let usingFirestore = false;
 
+let map = null;
+
+let earthquakeLayer = null;
+
+let weatherLayer = null;
+
+let allAlerts = [];
+
+let selectedAlert = null;
+
+let currentFilter = "all";
+
+
+// ======================================================
+// EARTHQUAKE SEVERITY
+// ======================================================
+
+function earthquakeSeverity(magnitude) {
+
+  if (magnitude === null || magnitude === undefined) {
+    return "low";
+  }
+
+
+  if (magnitude < 4) {
+    return "low";
+  }
+
+
+  if (magnitude < 5.5) {
+    return "moderate";
+  }
+
+
+  if (magnitude < 6.5) {
+    return "high";
+  }
+
+
+  return "severe";
+}
+
+
+// ======================================================
+// WEATHER SEVERITY
+// ======================================================
+
+function weatherSeverity({
+  precipitation = 0,
+  windspeed = 0,
+  weathercode = 0
+}) {
+
+  let rank = 1;
+
+
+  // Rain
+
+  if (precipitation >= 50) {
+
+    rank = Math.max(rank, 4);
+
+  } else if (precipitation >= 20) {
+
+    rank = Math.max(rank, 3);
+
+  } else if (precipitation >= 5) {
+
+    rank = Math.max(rank, 2);
+  }
+
+
+  // Wind
+
+  if (windspeed >= 90) {
+
+    rank = Math.max(rank, 4);
+
+  } else if (windspeed >= 60) {
+
+    rank = Math.max(rank, 3);
+
+  } else if (windspeed >= 40) {
+
+    rank = Math.max(rank, 2);
+  }
+
+
+  // Thunderstorm
+
+  if (
+    weathercode === 95 ||
+    weathercode === 96 ||
+    weathercode === 99
+  ) {
+
+    rank = Math.max(rank, 3);
+  }
+
+
+  // Heavy showers
+
+  if (
+    weathercode === 65 ||
+    weathercode === 82
+  ) {
+
+    rank = Math.max(rank, 2);
+  }
+
+
+  return RANK_TO_KEY[rank];
+}
+
+
+// ======================================================
+// WEATHER DESCRIPTION
+// ======================================================
+
+function weatherLabel(code) {
+
+  const labels = {
+
+    0: "Clear sky",
+
+    1: "Mainly clear",
+
+    2: "Partly cloudy",
+
+    3: "Overcast",
+
+    45: "Fog",
+
+    48: "Rime fog",
+
+    51: "Light drizzle",
+
+    53: "Drizzle",
+
+    55: "Dense drizzle",
+
+    61: "Light rain",
+
+    63: "Rain",
+
+    65: "Heavy rain",
+
+    71: "Light snow",
+
+    73: "Snow",
+
+    75: "Heavy snow",
+
+    80: "Rain showers",
+
+    81: "Heavy showers",
+
+    82: "Violent showers",
+
+    95: "Thunderstorm",
+
+    96: "Thunderstorm with hail",
+
+    99: "Severe thunderstorm"
+
+  };
+
+
+  return labels[code] || "Unknown";
+}
+
+
+// ======================================================
+// TIME AGO
+// ======================================================
+
+function timeAgo(date) {
+
+  const seconds = Math.floor(
+    (Date.now() - date.getTime()) / 1000
+  );
+
+
+  if (seconds < 60) {
+    return "just now";
+  }
+
+
+  if (seconds < 3600) {
+    return `${Math.floor(seconds / 60)}m ago`;
+  }
+
+
+  if (seconds < 86400) {
+    return `${Math.floor(seconds / 3600)}h ago`;
+  }
+
+
+  return `${Math.floor(seconds / 86400)}d ago`;
+}
+
+
+// ======================================================
+// HTML ESCAPE
+// ======================================================
+
+function escapeHtml(value) {
+
+  return String(value)
+
+    .replaceAll("&", "&amp;")
+
+    .replaceAll("<", "&lt;")
+
+    .replaceAll(">", "&gt;")
+
+    .replaceAll('"', "&quot;")
+
+    .replaceAll("'", "&#039;");
+}
+
+
+// ======================================================
+// FIREBASE
+// ======================================================
 
 function initStorage() {
 
@@ -205,33 +325,52 @@ function initStorage() {
       db = firebase.firestore();
 
       usingFirestore = true;
+
     }
 
   } catch (error) {
 
-    console.error("Firebase error:", error);
+    console.error(
+      "Firebase initialization error:",
+      error
+    );
 
     usingFirestore = false;
   }
 
 
-  document.getElementById("storageMode").textContent =
+  const storageElement =
+    document.getElementById("storageMode");
+
+
+  storageElement.textContent =
     usingFirestore
       ? "Storage: Firestore"
       : "Storage: Local";
 }
 
 
+// ======================================================
+// LOAD WATCHLIST
+// ======================================================
+
 async function loadWatchlist() {
 
   if (usingFirestore) {
 
     const snapshot =
-      await db.collection("watchlist").get();
+      await db
+        .collection("watchlist")
+        .get();
+
+
+    // First time setup
 
     if (snapshot.empty) {
 
-      for (const location of DEFAULT_WATCHLIST) {
+      for (
+        const location of DEFAULT_WATCHLIST
+      ) {
 
         await db
           .collection("watchlist")
@@ -239,38 +378,63 @@ async function loadWatchlist() {
 
       }
 
+
       return loadWatchlist();
     }
 
+
     return snapshot.docs.map(doc => ({
+
       id: doc.id,
+
       ...doc.data()
+
     }));
   }
 
 
+  // Local storage fallback
+
   const saved =
-    localStorage.getItem("disaster_watchlist");
+    localStorage.getItem(
+      "disaster_watchlist"
+    );
+
 
   if (!saved) {
 
     const initial =
-      DEFAULT_WATCHLIST.map((location, index) => ({
-        id: `local_${index}`,
-        ...location
-      }));
+      DEFAULT_WATCHLIST.map(
+        (location, index) => ({
+
+          id: `local_${index}`,
+
+          ...location
+
+        })
+      );
+
 
     localStorage.setItem(
+
       "disaster_watchlist",
+
       JSON.stringify(initial)
+
     );
+
 
     return initial;
   }
 
+
   return JSON.parse(saved);
 }
 
+
+// ======================================================
+// ADD WATCHLIST
+// ======================================================
 
 async function addToWatchlist(location) {
 
@@ -281,30 +445,49 @@ async function addToWatchlist(location) {
         .collection("watchlist")
         .add(location);
 
+
     return {
+
       id: reference.id,
+
       ...location
+
     };
   }
 
 
-  const list = await loadWatchlist();
+  const list =
+    await loadWatchlist();
+
 
   const newLocation = {
+
     id: `local_${Date.now()}`,
+
     ...location
+
   };
+
 
   list.push(newLocation);
 
+
   localStorage.setItem(
+
     "disaster_watchlist",
+
     JSON.stringify(list)
+
   );
+
 
   return newLocation;
 }
 
+
+// ======================================================
+// REMOVE WATCHLIST
+// ======================================================
 
 async function removeFromWatchlist(id) {
 
@@ -321,48 +504,69 @@ async function removeFromWatchlist(id) {
 
   const list =
     (await loadWatchlist())
-      .filter(location => location.id !== id);
+      .filter(
+        location =>
+          location.id !== id
+      );
+
 
   localStorage.setItem(
+
     "disaster_watchlist",
+
     JSON.stringify(list)
+
   );
 }
 
 
 // ======================================================
-// MAP
+// MAP INITIALIZATION
 // ======================================================
-
-let map;
-let earthquakeLayer;
-let weatherLayer;
 
 function initMap() {
 
-  map = L
-    .map("map")
-    .setView([22.9734, 78.6569], 4);
+  map =
+    L.map("map")
+      .setView(
+        [22.9734, 78.6569],
+        4
+      );
 
+
+  // ==================================================
+  // OPENSTREETMAP
+  // Carto completely removed
+  // ==================================================
 
   L.tileLayer(
-    "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
-    {
-      attribution:
-        "&copy; OpenStreetMap &copy; CARTO",
 
-      maxZoom: 18
+    "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+
+    {
+
+      maxZoom: 19,
+
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+
     }
+
   ).addTo(map);
 
 
   earthquakeLayer =
     L.layerGroup().addTo(map);
 
+
   weatherLayer =
     L.layerGroup().addTo(map);
 }
 
+
+// ======================================================
+// MARKER ICON
+// ======================================================
 
 function markerIcon(color) {
 
@@ -371,6 +575,7 @@ function markerIcon(color) {
     className: "",
 
     html: `
+
       <div style="
         width:16px;
         height:16px;
@@ -379,95 +584,145 @@ function markerIcon(color) {
         border:2px solid white;
         box-shadow:0 0 0 3px rgba(0,0,0,.35);
       "></div>
+
     `,
 
     iconSize: [16, 16],
 
     iconAnchor: [8, 8]
+
   });
 }
 
 
 // ======================================================
-// API DATA
+// EARTHQUAKE API
 // ======================================================
-
-let allAlerts = [];
-let selectedAlert = null;
-
-
-// ---------------- EARTHQUAKES ----------------
 
 async function fetchEarthquakes() {
 
-  const response = await fetch(
-    "https://earthquake.usgs.gov/earthquakehazards/feed/v1.0/summary/2.5_day.geojson"
-  );
+  const response =
+    await fetch(
+
+      "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_day.geojson"
+
+    );
+
 
   if (!response.ok) {
-    throw new Error("Earthquake API failed");
+
+    throw new Error(
+      "Earthquake API failed"
+    );
   }
 
-  const data = await response.json();
+
+  const data =
+    await response.json();
 
 
-  return data.features.map(feature => {
+  return data.features.map(
+    feature => {
 
-    const [lon, lat] =
-      feature.geometry.coordinates;
-
-    const magnitude =
-      feature.properties.mag;
+      const coordinates =
+        feature.geometry.coordinates;
 
 
-    return {
+      const lon =
+        coordinates[0];
 
-      type: "earthquake",
 
-      title:
-        feature.properties.place ||
-        "Unknown location",
+      const lat =
+        coordinates[1];
 
-      time:
-        new Date(feature.properties.time),
 
-      sevKey:
-        earthquakeSeverity(magnitude),
+      const depth =
+        coordinates[2];
 
-      lat,
-      lon,
 
-      meta:
-        `M${magnitude != null ? magnitude.toFixed(1) : "?"} · depth ${feature.geometry.coordinates[2]?.toFixed(0) || "?"} km`
-    };
+      const magnitude =
+        feature.properties.mag;
 
-  });
+
+      return {
+
+        type: "earthquake",
+
+        title:
+          feature.properties.place ||
+          "Unknown location",
+
+        time:
+          new Date(
+            feature.properties.time
+          ),
+
+        sevKey:
+          earthquakeSeverity(
+            magnitude
+          ),
+
+        lat,
+
+        lon,
+
+        magnitude,
+
+        meta:
+          `M${
+            magnitude !== null &&
+            magnitude !== undefined
+              ? magnitude.toFixed(1)
+              : "?"
+          } · depth ${
+            depth !== undefined
+              ? depth.toFixed(0)
+              : "?"
+          } km`
+
+      };
+
+    }
+  );
 }
 
 
-// ---------------- WEATHER ----------------
+// ======================================================
+// OPEN-METEO WEATHER API
+// ======================================================
 
 async function fetchWeather(location) {
 
   const url =
+
     `https://api.open-meteo.com/v1/forecast` +
+
     `?latitude=${location.lat}` +
+
     `&longitude=${location.lon}` +
+
     `&current_weather=true` +
+
     `&hourly=precipitation` +
+
     `&timezone=auto`;
 
 
   const response =
     await fetch(url);
 
+
   if (!response.ok) {
-    throw new Error("Weather API failed");
+
+    throw new Error(
+      "Weather API failed"
+    );
   }
 
 
   const data =
     await response.json();
+
 
   const current =
     data.current_weather;
@@ -481,15 +736,22 @@ async function fetchWeather(location) {
     data.hourly.time
   ) {
 
+    const currentHour =
+      current.time.slice(0, 13) +
+      ":00";
+
+
     const index =
       data.hourly.time.indexOf(
-        current.time.slice(0, 13) + ":00"
+        currentHour
       );
+
 
     if (index >= 0) {
 
       precipitation =
-        data.hourly.precipitation[index] || 0;
+        data.hourly.precipitation[index] ||
+        0;
     }
   }
 
@@ -504,6 +766,7 @@ async function fetchWeather(location) {
 
       weathercode:
         current.weathercode
+
     });
 
 
@@ -522,26 +785,45 @@ async function fetchWeather(location) {
     lon: location.lon,
 
     meta:
-      `${weatherLabel(current.weathercode)} · ${current.temperature}°C · wind ${current.windspeed} km/h · rain ${precipitation}mm/h`
+
+      `${weatherLabel(
+        current.weathercode
+      )} · ${current.temperature}°C · wind ${
+        current.windspeed
+      } km/h · rain ${
+        precipitation
+      }mm/h`
+
   };
 }
 
 
-// ---------------- GEOCODING ----------------
+// ======================================================
+// OPEN-METEO GEOCODING
+// ======================================================
 
 async function geocodeCity(cityName) {
 
   const url =
+
     `https://geocoding-api.open-meteo.com/v1/search` +
+
     `?name=${encodeURIComponent(cityName)}` +
-    `&count=1`;
+
+    `&count=1` +
+
+    `&language=en`;
 
 
   const response =
     await fetch(url);
 
+
   if (!response.ok) {
-    throw new Error("Geocoding failed");
+
+    throw new Error(
+      "Geocoding failed"
+    );
   }
 
 
@@ -563,9 +845,13 @@ async function geocodeCity(cityName) {
 
 
   const name = [
+
     result.name,
+
     result.admin1,
+
     result.country
+
   ]
     .filter(Boolean)
     .join(", ");
@@ -578,216 +864,372 @@ async function geocodeCity(cityName) {
     lat: result.latitude,
 
     lon: result.longitude
+
   };
 }
 
 
 // ======================================================
-// RENDER
+// RENDER MAP MARKERS
 // ======================================================
 
 function renderMarkers(alerts) {
 
   earthquakeLayer.clearLayers();
+
   weatherLayer.clearLayers();
 
 
   alerts.forEach(alert => {
 
     const color =
-      SEVERITY[alert.sevKey].color;
+      SEVERITY[
+        alert.sevKey
+      ].color;
 
 
     const marker =
+
       L.marker(
-        [alert.lat, alert.lon],
+
+        [
+          alert.lat,
+          alert.lon
+        ],
+
         {
-          icon: markerIcon(color)
+          icon:
+            markerIcon(color)
         }
+
       );
 
 
     marker.bindPopup(`
 
       <div class="popup-title">
-        ${escapeHtml(alert.title)}
+
+        ${escapeHtml(
+          alert.title
+        )}
+
       </div>
 
-      <div class="popup-row">
-        ${escapeHtml(alert.meta)}
-      </div>
 
       <div class="popup-row">
-        ${SEVERITY[alert.sevKey].label}
+
+        ${escapeHtml(
+          alert.meta
+        )}
+
+      </div>
+
+
+      <div class="popup-row">
+
+        ${
+          SEVERITY[
+            alert.sevKey
+          ].label
+        }
+
         ·
-        ${timeAgo(alert.time)}
+
+        ${
+          timeAgo(
+            alert.time
+          )
+        }
+
       </div>
 
     `);
 
 
-    marker.on("click", () => {
+    marker.on(
+      "click",
+      () => {
 
-      selectedAlert = alert;
+        selectAlert(alert);
 
-      document.getElementById(
-        "aiResult"
-      ).textContent =
-        `Selected: ${alert.title}. Click "Explain Current Alert" to ask AI.`;
-    });
+      }
+    );
 
 
-    if (alert.type === "earthquake") {
+    if (
+      alert.type ===
+      "earthquake"
+    ) {
 
-      earthquakeLayer.addLayer(marker);
+      earthquakeLayer
+        .addLayer(marker);
 
     } else {
 
-      weatherLayer.addLayer(marker);
+      weatherLayer
+        .addLayer(marker);
     }
 
   });
 }
 
 
+// ======================================================
+// SELECT ALERT
+// ======================================================
+
+function selectAlert(alert) {
+
+  selectedAlert = alert;
+
+
+  document
+    .querySelectorAll(".alert-card")
+    .forEach(card => {
+
+      card.classList.remove(
+        "selected"
+      );
+
+    });
+
+
+  const result =
+    document.getElementById(
+      "aiResult"
+    );
+
+
+  result.textContent =
+
+    `Selected: ${alert.title}. ` +
+
+    `Click "Explain Current Alert" ` +
+
+    `to ask AI.`;
+}
+
+
+// ======================================================
+// RENDER FEED
+// ======================================================
+
 function renderFeed(alerts) {
 
   const list =
-    document.getElementById("alertsFeed");
+    document.getElementById(
+      "alertsFeed"
+    );
 
-  const filter =
-    currentFilter;
+
+  let filtered = alerts;
 
 
-  const filtered =
-    filter === "all"
-      ? alerts
-      : alerts.filter(
-          alert => alert.type === filter
-        );
+  if (
+    currentFilter !== "all"
+  ) {
+
+    filtered =
+      alerts.filter(
+        alert =>
+          alert.type ===
+          currentFilter
+      );
+  }
 
 
   const sorted =
     [...filtered].sort(
+
       (a, b) =>
-        SEVERITY[b.sevKey].rank -
-        SEVERITY[a.sevKey].rank ||
+
+        SEVERITY[
+          b.sevKey
+        ].rank -
+
+        SEVERITY[
+          a.sevKey
+        ].rank ||
+
         b.time - a.time
+
     );
 
 
   document.getElementById(
     "alertCount"
-  ).textContent = sorted.length;
+  ).textContent =
+    sorted.length;
 
 
   if (!sorted.length) {
 
-    list.innerHTML =
-      `<li class="feed-empty">
+    list.innerHTML = `
+
+      <li class="feed-empty">
+
         No alerts in this category.
-      </li>`;
+
+      </li>
+
+    `;
 
     return;
   }
 
 
   list.innerHTML =
-    sorted.map((alert, index) => `
 
-      <li
-        class="alert-card"
-        data-index="${index}"
-      >
+    sorted.map(
+      (alert, index) => `
 
-        <span
-          class="alert-stripe"
-          style="
-            color:${SEVERITY[alert.sevKey].color};
-          "
-        ></span>
-
-
-        <div class="alert-body">
-
-          <div class="alert-top">
-
-            <span class="alert-title">
-              ${escapeHtml(alert.title)}
-            </span>
-
-            <span class="alert-time">
-              ${timeAgo(alert.time)}
-            </span>
-
-          </div>
-
-
-          <div class="alert-meta">
-            ${escapeHtml(alert.meta)}
-          </div>
-
+        <li
+          class="alert-card"
+          data-index="${index}"
+        >
 
           <span
-            class="alert-tag"
+            class="alert-stripe"
             style="
-              color:${SEVERITY[alert.sevKey].color};
-              background:${SEVERITY[alert.sevKey].color}18;
+              color:${
+                SEVERITY[
+                  alert.sevKey
+                ].color
+              };
             "
-          >
-            ${SEVERITY[alert.sevKey].label}
-          </span>
-
-        </div>
-
-      </li>
-
-    `).join("");
+          ></span>
 
 
-  list.querySelectorAll(".alert-card")
-    .forEach((card, index) => {
+          <div class="alert-body">
 
-      card.addEventListener(
-        "click",
-        () => {
+            <div class="alert-top">
 
-          const filteredAlerts =
-            currentFilter === "all"
-              ? allAlerts
-              : allAlerts.filter(
-                  alert =>
-                    alert.type === currentFilter
-                );
+              <span class="alert-title">
+
+                ${escapeHtml(
+                  alert.title
+                )}
+
+              </span>
 
 
-          selectedAlert =
-            [...filteredAlerts].sort(
-              (a, b) =>
-                SEVERITY[b.sevKey].rank -
-                SEVERITY[a.sevKey].rank ||
-                b.time - a.time
-            )[index];
+              <span class="alert-time">
+
+                ${timeAgo(
+                  alert.time
+                )}
+
+              </span>
+
+            </div>
 
 
-          document.getElementById(
-            "aiResult"
-          ).textContent =
-            `Selected: ${selectedAlert.title}. Click "Explain Current Alert".`;
+            <div class="alert-meta">
 
-        }
-      );
+              ${escapeHtml(
+                alert.meta
+              )}
 
-    });
+            </div>
+
+
+            <span
+              class="alert-tag"
+              style="
+                color:${
+                  SEVERITY[
+                    alert.sevKey
+                  ].color
+                };
+
+                background:${
+                  SEVERITY[
+                    alert.sevKey
+                  ].color
+                }18;
+              "
+            >
+
+              ${
+                SEVERITY[
+                  alert.sevKey
+                ].label
+              }
+
+            </span>
+
+          </div>
+
+        </li>
+
+      `
+    ).join("");
+
+
+  list
+    .querySelectorAll(
+      ".alert-card"
+    )
+    .forEach(
+      (card, index) => {
+
+        const alert =
+          sorted[index];
+
+
+        card.addEventListener(
+          "click",
+          () => {
+
+            selectAlert(
+              alert
+            );
+
+
+            card.classList.add(
+              "selected"
+            );
+
+
+            if (
+              alert.lat &&
+              alert.lon
+            ) {
+
+              map.setView(
+
+                [
+                  alert.lat,
+                  alert.lon
+                ],
+
+                6
+
+              );
+
+            }
+
+          }
+        );
+
+      }
+    );
 }
 
 
-function renderOverallSeverity(alerts) {
+// ======================================================
+// OVERALL SEVERITY
+// ======================================================
+
+function renderOverallSeverity(
+  alerts
+) {
 
   const badge =
     document.getElementById(
       "overallSeverity"
     );
+
 
   const label =
     document.getElementById(
@@ -800,8 +1242,10 @@ function renderOverallSeverity(alerts) {
     badge.className =
       "severity-badge sev-low";
 
+
     label.textContent =
       "ALL CLEAR";
+
 
     return;
   }
@@ -809,15 +1253,21 @@ function renderOverallSeverity(alerts) {
 
   const highestRank =
     Math.max(
+
       ...alerts.map(
         alert =>
-          SEVERITY[alert.sevKey].rank
+          SEVERITY[
+            alert.sevKey
+          ].rank
       )
+
     );
 
 
   const key =
-    RANK_TO_KEY[highestRank];
+    RANK_TO_KEY[
+      highestRank
+    ];
 
 
   badge.className =
@@ -825,11 +1275,18 @@ function renderOverallSeverity(alerts) {
 
 
   label.textContent =
+
     key === "low"
+
       ? "ALL CLEAR"
+
       : `${SEVERITY[key].label} ALERT`;
 }
 
+
+// ======================================================
+// RENDER WATCHLIST
+// ======================================================
 
 function renderWatchlist(list) {
 
@@ -839,50 +1296,96 @@ function renderWatchlist(list) {
     );
 
 
-  element.innerHTML =
-    list.map(location => `
+  if (!list.length) {
+
+    element.innerHTML = `
 
       <li>
 
         <span>
-          ${escapeHtml(location.name)}
+          No locations added.
         </span>
-
-        <button
-          class="remove-btn"
-          data-id="${location.id}"
-          title="Remove"
-        >
-          ×
-        </button>
 
       </li>
 
-    `).join("");
+    `;
+
+    return;
+  }
+
+
+  element.innerHTML =
+
+    list.map(
+      location => `
+
+        <li>
+
+          <span>
+
+            ${escapeHtml(
+              location.name
+            )}
+
+          </span>
+
+
+          <button
+            class="remove-btn"
+            data-id="${location.id}"
+            title="Remove"
+            type="button"
+          >
+
+            ×
+
+          </button>
+
+        </li>
+
+      `
+    ).join("");
 
 
   element
-    .querySelectorAll(".remove-btn")
-    .forEach(button => {
+    .querySelectorAll(
+      ".remove-btn"
+    )
+    .forEach(
+      button => {
 
-      button.addEventListener(
-        "click",
-        async () => {
+        button.addEventListener(
+          "click",
+          async () => {
 
-          await removeFromWatchlist(
-            button.dataset.id
-          );
+            try {
 
-          refreshAll();
-        }
-      );
+              await removeFromWatchlist(
+                button.dataset.id
+              );
 
-    });
+
+              await refreshAll();
+
+            } catch (error) {
+
+              console.error(
+                "Remove failed:",
+                error
+              );
+
+            }
+
+          }
+        );
+
+      }
+    );
 }
 
 
 // ======================================================
-// REFRESH
+// REFRESH EVERYTHING
 // ======================================================
 
 async function refreshAll() {
@@ -902,49 +1405,95 @@ async function refreshAll() {
       await loadWatchlist();
 
 
-    renderWatchlist(watchlist);
+    renderWatchlist(
+      watchlist
+    );
 
 
     const earthquakePromise =
       fetchEarthquakes()
-        .catch(() => []);
+        .catch(error => {
+
+          console.error(
+            "Earthquake error:",
+            error
+          );
+
+          return [];
+
+        });
 
 
     const weatherPromises =
+
       watchlist.map(
         location =>
-          fetchWeather(location)
-            .catch(() => null)
+
+          fetchWeather(
+            location
+          ).catch(error => {
+
+            console.error(
+              "Weather error:",
+              error
+            );
+
+            return null;
+
+          })
+
       );
 
 
     const [
+
       earthquakes,
+
       ...weatherResults
+
     ] = await Promise.all([
+
       earthquakePromise,
+
       ...weatherPromises
+
     ]);
 
 
     allAlerts = [
+
       ...earthquakes,
-      ...weatherResults.filter(Boolean)
+
+      ...weatherResults.filter(
+        Boolean
+      )
+
     ];
 
 
-    renderMarkers(allAlerts);
+    renderMarkers(
+      allAlerts
+    );
 
-    renderFeed(allAlerts);
 
-    renderOverallSeverity(allAlerts);
+    renderFeed(
+      allAlerts
+    );
+
+
+    renderOverallSeverity(
+      allAlerts
+    );
 
 
     document.getElementById(
       "lastUpdated"
     ).textContent =
+
       "Updated " +
-      new Date().toLocaleTimeString();
+
+      new Date()
+        .toLocaleTimeString();
 
   } catch (error) {
 
@@ -956,12 +1505,13 @@ async function refreshAll() {
   } finally {
 
     button.disabled = false;
+
   }
 }
 
 
 // ======================================================
-// AI
+// AI EXPLANATION
 // ======================================================
 
 async function explainWithAI() {
@@ -970,6 +1520,7 @@ async function explainWithAI() {
     document.getElementById(
       "aiExplainBtn"
     );
+
 
   const result =
     document.getElementById(
@@ -980,6 +1531,7 @@ async function explainWithAI() {
   if (!selectedAlert) {
 
     result.textContent =
+
       "Please select an alert first.";
 
     return;
@@ -988,6 +1540,7 @@ async function explainWithAI() {
 
   button.disabled = true;
 
+
   result.textContent =
     "AI is analyzing the alert...";
 
@@ -995,32 +1548,46 @@ async function explainWithAI() {
   try {
 
     const response =
-      await fetch("/api/ai", {
+      await fetch(
 
-        method: "POST",
+        "/api/ai",
 
-        headers: {
-          "Content-Type": "application/json"
-        },
+        {
 
-        body: JSON.stringify({
-          alert: {
+          method: "POST",
 
-            type: selectedAlert.type,
+          headers: {
 
-            title: selectedAlert.title,
+            "Content-Type":
+              "application/json"
 
-            severity:
-              SEVERITY[
-                selectedAlert.sevKey
-              ].label,
+          },
 
-            details:
-              selectedAlert.meta
-          }
-        })
+          body: JSON.stringify({
 
-      });
+            alert: {
+
+              type:
+                selectedAlert.type,
+
+              title:
+                selectedAlert.title,
+
+              severity:
+                SEVERITY[
+                  selectedAlert.sevKey
+                ].label,
+
+              details:
+                selectedAlert.meta
+
+            }
+
+          })
+
+        }
+
+      );
 
 
     const data =
@@ -1030,8 +1597,11 @@ async function explainWithAI() {
     if (!response.ok) {
 
       throw new Error(
+
         data.error ||
+
         "AI request failed"
+
       );
     }
 
@@ -1041,14 +1611,20 @@ async function explainWithAI() {
 
   } catch (error) {
 
-    console.error(error);
+    console.error(
+      "AI error:",
+      error
+    );
+
 
     result.textContent =
-      "AI explanation is currently unavailable.";
+
+      "AI explanation is currently unavailable. Please try again later.";
 
   } finally {
 
     button.disabled = false;
+
   }
 }
 
@@ -1057,52 +1633,67 @@ async function explainWithAI() {
 // EVENTS
 // ======================================================
 
-let currentFilter = "all";
-
-
 function initEvents() {
 
+  // Refresh
+
   document
-    .getElementById("refreshBtn")
+    .getElementById(
+      "refreshBtn"
+    )
     .addEventListener(
       "click",
       refreshAll
     );
 
 
+  // Filters
+
   document
-    .querySelectorAll(".filter-btn")
-    .forEach(button => {
+    .querySelectorAll(
+      ".filter-btn"
+    )
+    .forEach(
+      button => {
 
-      button.addEventListener(
-        "click",
-        () => {
+        button.addEventListener(
+          "click",
+          () => {
 
-          document
-            .querySelectorAll(".filter-btn")
-            .forEach(
-              btn =>
-                btn.classList.remove(
-                  "active"
-                )
+            document
+              .querySelectorAll(
+                ".filter-btn"
+              )
+              .forEach(
+                btn =>
+                  btn.classList
+                    .remove(
+                      "active"
+                    )
+              );
+
+
+            button.classList.add(
+              "active"
             );
 
 
-          button.classList.add(
-            "active"
-          );
+            currentFilter =
+              button.dataset.filter;
 
 
-          currentFilter =
-            button.dataset.filter;
+            renderFeed(
+              allAlerts
+            );
+
+          }
+        );
+
+      }
+    );
 
 
-          renderFeed(allAlerts);
-        }
-      );
-
-    });
-
+  // Add city
 
   document
     .getElementById(
@@ -1119,6 +1710,7 @@ function initEvents() {
           document.getElementById(
             "cityInput"
           );
+
 
         const message =
           document.getElementById(
@@ -1142,13 +1734,39 @@ function initEvents() {
         try {
 
           const location =
-            await geocodeCity(city);
+            await geocodeCity(
+              city
+            );
 
 
           if (!location) {
 
             message.textContent =
+
               `Couldn't find "${city}".`;
+
+            return;
+          }
+
+
+          const existing =
+            await loadWatchlist();
+
+
+          const alreadyExists =
+            existing.some(
+              item =>
+                item.name
+                  .toLowerCase() ===
+                location.name
+                  .toLowerCase()
+            );
+
+
+          if (alreadyExists) {
+
+            message.textContent =
+              "This city is already in your watchlist.";
 
             return;
           }
@@ -1168,7 +1786,11 @@ function initEvents() {
 
         } catch (error) {
 
-          console.error(error);
+          console.error(
+            "Add location failed:",
+            error
+          );
+
 
           message.textContent =
             "Unable to add this location.";
@@ -1179,6 +1801,8 @@ function initEvents() {
     );
 
 
+  // AI
+
   document
     .getElementById(
       "aiExplainBtn"
@@ -1187,26 +1811,12 @@ function initEvents() {
       "click",
       explainWithAI
     );
+
 }
 
 
 // ======================================================
-// SECURITY HELPER
-// ======================================================
-
-function escapeHtml(value) {
-
-  return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
-
-
-// ======================================================
-// START
+// START APPLICATION
 // ======================================================
 
 async function startApp() {
@@ -1225,9 +1835,16 @@ async function startApp() {
 startApp();
 
 
+// ======================================================
+// AUTO REFRESH
+// ======================================================
+
 // Refresh every 5 minutes
 
 setInterval(
+
   refreshAll,
+
   5 * 60 * 1000
+
 );
